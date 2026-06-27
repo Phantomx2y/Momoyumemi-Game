@@ -2,37 +2,58 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="description" content="Momoyumemi – anime NFT arcade runner" />
+  <meta name="theme-color" content="#1a0828" />
   <title>MOMOYUMEMI · 桃夢見</title>
   <link rel="stylesheet" href="./css/style.css" />
 </head>
 <body>
 
+<!-- ── Game canvas ──────────────────────────────────────────────────────────── -->
 <canvas id="c"></canvas>
+
+<!-- ── In-game HUD ─────────────────────────────────────────────────────────── -->
 <div id="ui" style="display:none;">
   <div id="fov"></div>
+
   <div id="topbar">
     <div id="left">
       <div id="pname"></div>
       <div id="sv">0</div>
-      <div id="shield-row"><div id="shield-icon">🍑</div><div id="peach-prog">0 / 3</div></div>
+      <div id="shield-row">
+        <div id="shield-icon">🍑</div>
+        <div id="peach-prog">0 / 3</div>
+      </div>
     </div>
-    <div id="right"><div id="dlabel">桃夢見</div><div id="thname"></div><div id="surv-timer" style="font-size:11px;letter-spacing:2px;color:#f9d8e0;margin-top:4px;font-weight:700;font-family:'Courier New',monospace;">0:00</div></div>
+    <div id="right">
+      <div id="dlabel">桃夢見</div>
+      <div id="thname"></div>
+      <div id="surv-timer">0:00</div>
+    </div>
   </div>
+
+  <!-- mute button always on top -->
+  <button id="mute-btn" aria-label="Toggle mute">🔊</button>
+
   <div id="stimer"></div>
   <div id="gaplabel"></div>
-  <div id="bot"><div id="ctxt"></div><div id="hint">tap · space to float</div></div>
+  <div id="bot">
+    <div id="ctxt"></div>
+    <div id="hint">tap · space to float</div>
+  </div>
 </div>
+
+<!-- ── Login screen ─────────────────────────────────────────────────────────── -->
 <div id="login-wrap">
-  <div style="text-align:center;margin-bottom:8px;">
-    <div style="font-size:10px;letter-spacing:6px;color:#a050a0;margin-bottom:5px;">桃 · 夢 · 見</div>
+  <div class="login-header">
+    <div class="login-kanji">桃 · 夢 · 見</div>
     <div class="ltitle">MOMOYUMEMI</div>
     <div class="lsub">the one who sees peach-colored dreams</div>
   </div>
   <div class="lcard">
     <div class="slabel">✦ your name</div>
-    <input class="ninp" id="ni" placeholder="enter your name..." maxlength="16" autocomplete="off"/>
+    <input class="ninp" id="ni" placeholder="enter your name…" maxlength="16" autocomplete="off" />
     <div id="savlbl"></div>
     <div class="divdr"></div>
     <div class="slabel">✦ choose character</div>
@@ -40,22 +61,32 @@
     <div class="divdr"></div>
     <div class="slabel">✦ choose theme</div>
     <div class="tgrid" id="tgrid"></div>
-    <button class="pbtn" id="pb">[ enter the dream ]</button>
+    <button class="pbtn" id="pb" disabled>[ enter the dream ]</button>
     <div class="lblink" id="lbb">view leaderboard →</div>
   </div>
 </div>
+
+<!-- ── Game-over screen ─────────────────────────────────────────────────────── -->
 <div id="os">
-  <div class="ok" id="os-k">夢の終わり</div>
-  <div class="ot" id="os-t">MOMO</div>
-  <div class="os2" id="os-s">she woke up</div>
+  <!-- small theme tag top-right -->
+  <div id="os-theme-tag" class="os-theme-tag"></div>
+
+  <!-- player name as primary heading -->
+  <div id="os-player" class="os-player"></div>
+  <div class="os-divider"></div>
+
   <div class="osc" id="os-sc"></div>
   <div class="obest" id="os-b"></div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+  <div class="os-time" id="os-time"></div>
+
+  <div class="os-btns">
     <button class="obtn" id="rb">[ dream again ]</button>
     <button class="obtn sec" id="lbb2">[ leaderboard ]</button>
   </div>
-  <button class="obtn sec" id="swb" style="margin-top:6px;">[ switch player ]</button>
+  <button class="obtn sec" id="swb">[ switch player ]</button>
 </div>
+
+<!-- ── Leaderboard screen ───────────────────────────────────────────────────── -->
 <div id="ls">
   <div class="lt">LEADERBOARD</div>
   <div class="ls2">最高得点 · high scores</div>
@@ -63,20 +94,20 @@
   <button class="obtn sec" id="backb">[ back ]</button>
 </div>
 
-  <!--
-    Script load order matters:
-      1. images.js   – IMG_DATA array (base64 NFT images)
-      2. audio.js    – audio stubs
-      3. supabase.js – community leaderboard (Supabase REST)
-      4. leaderboard.js – local device score storage
-      5. game.js     – canvas, state, BG, physics, game loop
-      6. ui.js       – screens, pickers, event wiring, init
-  -->
-  <script src="./js/images.js"></script>
-  <script src="./js/audio.js"></script>
-  <script src="./js/supabase.js"></script>
-  <script src="./js/leaderboard.js"></script>
-  <script src="./js/game.js"></script>
-  <script src="./js/ui.js"></script>
+<!--
+  Script load order:
+    1. images.js      – IMG_DATA (base64 NFTs, must be first)
+    2. audio.js       – Web Audio SFX + BGM
+    3. supabase.js    – community leaderboard REST calls
+    4. leaderboard.js – device-local score storage
+    5. game.js        – canvas, physics, backgrounds, game loop
+    6. ui.js          – screens, pickers, event wiring, init
+-->
+<script src="./js/images.js"></script>
+<script src="./js/audio.js"></script>
+<script src="./js/supabase.js"></script>
+<script src="./js/leaderboard.js"></script>
+<script src="./js/game.js"></script>
+<script src="./js/ui.js"></script>
 </body>
 </html>
