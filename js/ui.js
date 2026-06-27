@@ -1,18 +1,31 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // ui.js  –  Login screen, character/theme pickers, screen transitions,
-//           event wiring, and the survival timer HUD element.
-// Depends on: game.js (for state vars), leaderboard.js, supabase.js
+//           event wiring, mute toggle, and game-over display.
+// Depends on: game.js, leaderboard.js, supabase.js, audio.js
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Switch between named screens: 'login' | 'game' | 'os' | 'ls' */
+// ── Screen management ─────────────────────────────────────────────────────────
+// Use a flag to prevent the brief flash when switching screens.
+let _screenLocked = false;
+
 function showSc(id) {
-  document.getElementById('login-wrap').style.display = id === 'login' ? 'flex' : 'none';
-  document.getElementById('os').style.display         = id === 'os'    ? 'flex' : 'none';
-  document.getElementById('ls').style.display         = id === 'ls'    ? 'flex' : 'none';
-  document.getElementById('ui').style.display         = id === 'game'  ? 'block': 'none';
+  document.getElementById('login-wrap').style.display = id === 'login' ? 'flex'  : 'none';
+  document.getElementById('os').style.display         = id === 'os'    ? 'flex'  : 'none';
+  document.getElementById('ls').style.display         = id === 'ls'    ? 'flex'  : 'none';
+  document.getElementById('ui').style.display         = id === 'game'  ? 'block' : 'none';
 }
 
-/** Populate the character selection grid with NFT thumbnails. */
+// ── Name validation → enable / disable Play button ───────────────────────────
+function _validateName() {
+  const val  = document.getElementById('ni').value.trim();
+  const btn  = document.getElementById('pb');
+  const valid = val.length >= 1;
+  btn.disabled = !valid;
+  btn.style.opacity  = valid ? '1'    : '0.45';
+  btn.style.cursor   = valid ? 'pointer' : 'not-allowed';
+}
+
+// ── Character grid ────────────────────────────────────────────────────────────
 function buildCGrid() {
   const g = document.getElementById('cgrid');
   g.innerHTML = '';
@@ -31,12 +44,16 @@ function buildCGrid() {
 
     card.appendChild(img);
     card.appendChild(nm);
-    card.addEventListener('click', () => { selChar = i; buildCGrid(); });
+    card.addEventListener('click', () => {
+      playBtnSfx();
+      selChar = i;
+      buildCGrid();
+    });
     g.appendChild(card);
   });
 }
 
-/** Populate the theme selection grid with colour-gradient thumbnails. */
+// ── Theme grid ────────────────────────────────────────────────────────────────
 function buildTGrid() {
   const g = document.getElementById('tgrid');
   g.innerHTML = '';
@@ -45,9 +62,9 @@ function buildTGrid() {
     card.className = 'tcard' + (i === selTheme ? ' sel' : '');
 
     const thumb = document.createElement('div');
-    thumb.className  = 'tthumb';
+    thumb.className        = 'tthumb';
     thumb.style.background = `linear-gradient(160deg,${t.sky[0]},${t.sky[1]},${t.sky[2]})`;
-    thumb.innerHTML  = `<span>${t.emoji}</span>`;
+    thumb.innerHTML        = `<span>${t.emoji}</span>`;
 
     const lbl = document.createElement('div');
     lbl.className   = 'tlbl';
@@ -55,64 +72,90 @@ function buildTGrid() {
 
     card.appendChild(thumb);
     card.appendChild(lbl);
-    card.addEventListener('click', () => { selTheme = i; buildTGrid(); });
+    card.addEventListener('click', () => {
+      playBtnSfx();
+      selTheme = i;
+      buildTGrid();
+    });
     g.appendChild(card);
   });
 }
 
-/** Start a new game run. */
+// ── Start game ────────────────────────────────────────────────────────────────
 async function startGame() {
-  playerName  = document.getElementById('ni').value.trim() || 'dreamer';
-  score       = 0;
-  peachCount  = 0;
-  peachProg   = 0;
-  hasShield   = false;
-  shieldTimer = 0;
-  stage       = 0;
-  F           = 0;
-  clearObsTimer = 0;
-  charY       = H / 2;
-  charVY      = 0;
-  charFlash   = 0;
-  walls       = [];
-  peachItems  = [];
-  parts       = [];
-  wTimer      = 55;   // spawn first wall quickly
-  patIdx      = 0;
-  curPat      = [];
-  survStart   = Date.now();
+  const nameVal = document.getElementById('ni').value.trim();
+  if (!nameVal) return;                // guard: name required
 
-  document.getElementById('sv').textContent    = '0';
-  document.getElementById('pname').textContent = playerName.toUpperCase();
+  playBtnSfx();
+
+  playerName    = nameVal;
+  score         = 0;
+  peachCount    = 0;
+  peachProg     = 0;
+  hasShield     = false;
+  shieldTimer   = 0;
+  stage         = 0;
+  F             = 0;
+  clearObsTimer = 0;
+  charY         = H / 2;
+  charVY        = 0;
+  charFlash     = 0;
+  walls         = [];
+  peachItems    = [];
+  parts         = [];
+  wTimer        = 55;
+  patIdx        = 0;
+  curPat        = [];
+  survStart     = Date.now();
+
+  document.getElementById('sv').textContent     = '0';
+  document.getElementById('pname').textContent  = playerName.toUpperCase();
   document.getElementById('thname').textContent = THEMES[selTheme].label;
-  document.getElementById('fov').style.opacity = '0';
+  document.getElementById('fov').style.opacity  = '0';
   updShield();
+
   showSc('game');
+  startBGM();
 
   gameOn = true;
   requestAnimationFrame(loop);
 }
 
-/** Called when the player dies. Saves scores and shows the game-over screen. */
+// ── End game ──────────────────────────────────────────────────────────────────
 async function endGame() {
   gameOn = false;
+  stopBGM();
+
   const local = await saveLoc(playerName, score);
   await saveLB(playerName, score);
 
   const T = THEMES[selTheme];
-  document.getElementById('os-k').textContent  = T.okk;
-  document.getElementById('os-t').textContent  = T.ott;
-  document.getElementById('os-s').textContent  = T.os2;
+
+  // Player name (primary heading)
+  document.getElementById('os-player').textContent = playerName.toUpperCase();
+
+  // Score
   document.getElementById('os-sc').textContent =
     'score · ' + score + ' pts  (' + peachCount + ' 🍑)';
-  document.getElementById('os-b').textContent  =
+  document.getElementById('os-b').textContent =
     'personal best · ' + (local ? local.best : score) + ' pts';
+
+  // Theme label (small corner tag)
+  document.getElementById('os-theme-tag').textContent = T.label;
+
+  // Survival time
+  const secs = Math.floor((Date.now() - survStart) / 1000);
+  const mm   = Math.floor(secs / 60), ss = secs % 60;
+  document.getElementById('os-time').textContent =
+    'survived · ' + mm + ':' + (ss < 10 ? '0' : '') + ss;
 
   showSc('os');
 }
 
-/** Fetch top-10 from Supabase and render the leaderboard screen. */
+// ── Leaderboard ───────────────────────────────────────────────────────────────
 async function showLB(from) {
+  playBtnSfx();
+
   const lb  = await getLB();
   const tbl = document.getElementById('lbt');
   tbl.innerHTML = '';
@@ -133,13 +176,24 @@ async function showLB(from) {
     });
   }
 
-  document.getElementById('backb').onclick = () => showSc(from);
+  document.getElementById('backb').onclick = () => { playBtnSfx(); showSc(from); };
   showSc('ls');
 }
 
-// ── Event wiring ──────────────────────────────────────────────────────────────
+// ── Mute toggle ───────────────────────────────────────────────────────────────
+function _updateMuteBtn() {
+  const btn = document.getElementById('mute-btn');
+  if (btn) btn.textContent = isMuted() ? '🔇' : '🔊';
+}
 
+document.getElementById('mute-btn').addEventListener('click', () => {
+  toggleMute();
+  _updateMuteBtn();
+});
+
+// ── Event wiring ──────────────────────────────────────────────────────────────
 document.getElementById('ni').addEventListener('input', async function () {
+  _validateName();
   const n = this.value.trim();
   if (n.length > 1) {
     const d = await loadLoc(n);
@@ -154,18 +208,27 @@ document.getElementById('ni').addEventListener('keydown', e => {
   if (e.key === 'Enter') startGame();
 });
 
-document.getElementById('pb').addEventListener('click',  startGame);
+document.getElementById('pb').addEventListener('click', startGame);
+
 document.getElementById('lbb').addEventListener('click', () => showLB('login'));
-document.getElementById('rb').addEventListener('click',  startGame);
-document.getElementById('lbb2').addEventListener('click',() => showLB('os'));
-document.getElementById('swb').addEventListener('click', () => {
-  playerName = '';
-  showSc('login');
-  document.getElementById('ni').value        = '';
-  document.getElementById('savlbl').textContent = '';
+
+document.getElementById('rb').addEventListener('click', () => {
+  startGame();
 });
 
-// Flap input
+document.getElementById('lbb2').addEventListener('click', () => showLB('os'));
+
+document.getElementById('swb').addEventListener('click', () => {
+  playBtnSfx();
+  stopBGM();
+  playerName = '';
+  showSc('login');
+  document.getElementById('ni').value          = '';
+  document.getElementById('savlbl').textContent = '';
+  _validateName();
+});
+
+// Flap / jump input
 document.addEventListener('keydown', e => {
   if (e.code === 'Space' || e.code === 'ArrowUp') {
     e.preventDefault();
@@ -175,7 +238,8 @@ document.addEventListener('keydown', e => {
 document.addEventListener('touchstart', e => {
   const t = e.target;
   if (t.tagName === 'BUTTON' || t.tagName === 'INPUT' ||
-      t.classList.contains('ccard') || t.classList.contains('tcard')) return;
+      t.classList.contains('ccard') || t.classList.contains('tcard') ||
+      t.id === 'mute-btn') return;
   if (!gameOn) return;
   e.preventDefault();
   flap();
@@ -183,11 +247,13 @@ document.addEventListener('touchstart', e => {
 document.addEventListener('mousedown', e => {
   const t = e.target;
   if (t.tagName === 'BUTTON' || t.tagName === 'INPUT' ||
-      t.classList.contains('ccard') || t.classList.contains('tcard')) return;
+      t.classList.contains('ccard') || t.classList.contains('tcard') ||
+      t.id === 'mute-btn') return;
   flap();
 });
 
 // ── Initialise ────────────────────────────────────────────────────────────────
 buildCGrid();
 buildTGrid();
+_validateName();          // start with Play disabled
 showSc('login');
