@@ -228,12 +228,12 @@ function checkCol(){
   if(!hit)for(const w of walls){if(charX+R>w.x&&charX-R<w.x+WW&&(charY-R<w.gapY||charY+R>w.gapY+w.gapH)){hit=true;break;}}
   if(!hit)return;
   if(hasShield){
-    hasShield=false;shieldTimer=0;peachProg=0;charFlash=55;clearObsTimer=24;
-    burst(charX,charY,'#60d8ff',14);updShield();
+    hasShield=false;shieldTimer=0;peachProg=0;charFlash=55;clearObsTimer=90;
+    burst(charX,charY,'#60d8ff',14);updShield();playHitSfx();
     const fo=document.getElementById('fov');fo.style.background='rgba(80,220,255,0.35)';fo.style.opacity='1';setTimeout(()=>fo.style.opacity='0',300);
     document.getElementById('stimer').style.opacity='0';
   } else {
-    const fo=document.getElementById('fov');fo.style.background='rgba(255,50,50,0.45)';fo.style.opacity='1';
+    const fo=document.getElementById('fov');fo.style.background='rgba(255,50,50,0.45)';fo.style.opacity='1';playDeathSfx();
     setTimeout(()=>{fo.style.opacity='0';endGame();},350);
   }
 }
@@ -246,9 +246,10 @@ function checkPeach(){
       p.got=true;burst(p.x,p.y,'#f9a870',6);
       peachCount++;score+=10;
       document.getElementById('sv').textContent=score;
+      playPeachSfx();
       if(!hasShield){
         peachProg++;
-        if(peachProg>=3){hasShield=true;shieldTimer=SSECS*60;peachProg=0;burst(charX,charY,'#60d8ff',12);showCtxt('🛡️ shield!');}
+        if(peachProg>=3){hasShield=true;shieldTimer=SSECS*60;peachProg=0;burst(charX,charY,'#60d8ff',12);showCtxt('🛡️ shield!');playShieldSfx();}
         else showCtxt('🍑 +10');
       } else showCtxt('🍑 +10');
       updShield();
@@ -282,7 +283,7 @@ function update(){
   if(hasShield&&shieldTimer>0){
     shieldTimer--;
     document.getElementById('stimer').textContent='⏱ '+Math.ceil(shieldTimer/60)+'s';
-    if(shieldTimer<=0){hasShield=false;peachProg=0;updShield();glbl('shield gone!');}
+    if(shieldTimer<=0){hasShield=false;peachProg=0;updShield();glbl('shield gone!');playShieldExpireSfx();}
   }
   if(clearObsTimer>0)clearObsTimer--;
   const ws=wSpeed();
