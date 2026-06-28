@@ -97,6 +97,7 @@ async function startGame() {
   stage         = 0;
   F             = 0;
   clearObsTimer = 0;
+  shieldWarning = false;
   charY         = H / 2;
   charVY        = 0;
   charFlash     = 0;
@@ -107,6 +108,7 @@ async function startGame() {
   patIdx        = 0;
   curPat        = [];
   survStart     = Date.now();
+  runId++;                     // invalidate any stale death/flash callbacks from previous run
 
   document.getElementById('sv').textContent     = '0';
   document.getElementById('pname').textContent  = playerName.toUpperCase();
