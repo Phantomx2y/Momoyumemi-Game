@@ -46,6 +46,7 @@ canvas {
   justify-content: space-between;
   align-items: flex-start;
   padding: clamp(8px, 2vw, 14px) clamp(10px, 3vw, 22px);
+  gap: clamp(6px, 1vw, 12px);
 }
 
 #left {
@@ -96,13 +97,6 @@ canvas {
   opacity: 0.6;
 }
 
-#thname {
-  font-size: clamp(8px, 1.2vw, 10px);
-  letter-spacing: 3px;
-  color: #f9c8d0;
-  margin-top: 2px;
-  opacity: 0.75;
-}
 
 #surv-timer {
   font-size: clamp(10px, 1.8vw, 13px);
@@ -112,31 +106,41 @@ canvas {
   font-weight: 700;
 }
 
-/* Mute button – always interactive, floats top-right during gameplay */
+/* ── HUD end group: theme label + mute button side-by-side ────────────────── */
+#hud-end {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  padding-left: clamp(8px, 1.5vw, 16px);
+  flex-shrink: 0;
+}
+
+#thname {
+  font-size: clamp(8px, 1.2vw, 10px);
+  letter-spacing: 3px;
+  color: #f9c8d0;
+  opacity: 0.8;
+  text-align: right;
+  white-space: nowrap;
+}
+
 #mute-btn {
-  position: absolute;
-  top: clamp(8px, 2vw, 14px);
-  right: clamp(10px, 3vw, 22px);
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
-  width: clamp(32px, 5vw, 42px);
-  height: clamp(32px, 5vw, 42px);
-  font-size: clamp(14px, 2.2vw, 18px);
+  width: clamp(28px, 4.5vw, 38px);
+  height: clamp(28px, 4.5vw, 38px);
+  font-size: clamp(13px, 2vw, 17px);
   cursor: pointer;
   pointer-events: all;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: background 0.2s;
-  z-index: 100;
-  /* keep it from overlapping the right HUD text */
-  /* (right HUD is hidden during game — mute btn is always visible) */
+  align-self: flex-end;
 }
-#mute-btn:hover { background: rgba(255,255,255,0.15); }
-
-/* Hide mute btn on non-game screens (login/OS/LS) */
-#login-wrap ~ * #mute-btn { display: none; }
+#mute-btn:hover { background: rgba(255, 255, 255, 0.18); }
 
 #bot {
   position: absolute;
