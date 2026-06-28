@@ -83,11 +83,15 @@ function buildTGrid() {
 
 // ── Start game ────────────────────────────────────────────────────────────────
 async function startGame() {
-  console.log("START", runId);
   const nameVal = document.getElementById('ni').value.trim();
   if (!nameVal) return;                // guard: name required
 
   playBtnSfx();
+
+  // Cancel every pending timeout, interval, and the running RAF loop
+  // before touching any state — this is the primary restart fix.
+  _clearAll();
+  runId++;
 
   playerName    = nameVal;
   score         = 0;
@@ -109,7 +113,6 @@ async function startGame() {
   patIdx        = 0;
   curPat        = [];
   survStart     = Date.now();
-  runId++;                     // invalidate any stale death/flash callbacks from previous run
 
   document.getElementById('sv').textContent     = '0';
   document.getElementById('pname').textContent  = playerName.toUpperCase();
@@ -121,38 +124,47 @@ async function startGame() {
   startBGM();
 
   gameOn = true;
-  requestAnimationFrame(loop);
+  _rafId = requestAnimationFrame(loop);
 }
 
 // ── End game ──────────────────────────────────────────────────────────────────
 async function endGame() {
-    console.log("ENDGAME", runId);
+  // Snapshot the runId at the moment of death.
+  // If startGame() fires before our awaits complete, runId will have
+  // incremented and we bail — never overwriting the new game's screen.
+  const myRunId = runId;
 
-    if (!gameOn) return;
+  gameOn = false;
+  stopBGM();
 
-    gameOn = false;
-  
-}
+  // Snapshot score/time NOW before state is reset by a possible restart.
+  const snapScore  = score;
+  const snapPeach  = peachCount;
+  const snapName   = playerName;
+  const snapSurvMs = Date.now() - survStart;
+  const snapTheme  = THEMES[selTheme];
 
-  const local = await saveLoc(playerName, score);
-  await saveLB(playerName, score);
+  // These network calls may take time — a new game could start while waiting.
+  const local = await saveLoc(snapName, snapScore);
+  await saveLB(snapName, snapScore);
 
-  const T = THEMES[selTheme];
+  // If the player already restarted, do nothing — don't touch the screen.
+  if (runId !== myRunId) return;
 
   // Player name (primary heading)
-  document.getElementById('os-player').textContent = playerName.toUpperCase();
+  document.getElementById('os-player').textContent = snapName.toUpperCase();
 
   // Score
   document.getElementById('os-sc').textContent =
-    'score · ' + score + ' pts  (' + peachCount + ' 🍑)';
+    'score · ' + snapScore + ' pts  (' + snapPeach + ' 🍑)';
   document.getElementById('os-b').textContent =
-    'personal best · ' + (local ? local.best : score) + ' pts';
+    'personal best · ' + (local ? local.best : snapScore) + ' pts';
 
   // Theme label (small corner tag)
-  document.getElementById('os-theme-tag').textContent = T.label;
+  document.getElementById('os-theme-tag').textContent = snapTheme.label;
 
   // Survival time
-  const secs = Math.floor((Date.now() - survStart) / 1000);
+  const secs = Math.floor(snapSurvMs / 1000);
   const mm   = Math.floor(secs / 60), ss = secs % 60;
   document.getElementById('os-time').textContent =
     'survived · ' + mm + ':' + (ss < 10 ? '0' : '') + ss;
