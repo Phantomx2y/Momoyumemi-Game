@@ -7,7 +7,7 @@ const cv=document.getElementById('c'),X=cv.getContext('2d');
 cv.width=window.innerWidth;cv.height=window.innerHeight;
 const W=cv.width,H=cv.height;
 let F=0,gameOn=false,playerName='',selChar=0,selTheme=0;
-let score=0,peachCount=0,peachProg=0,hasShield=false,shieldTimer=0,stage=0,clearObsTimer=0;
+let score=0,peachCount=0,peachProg=0,hasShield=false,shieldTimer=0,stage=0,clearObsTimer=0,shieldWarning=false;
 
 const NFTS=IMG_DATA.map(d=>{const img=new Image();img.src=d;return img;});
 const CNAMES=['Seishun Drifter','Yandere Blitz','Akuma Gothic','Capybara Shinigami','Konbini Kuudere'];
@@ -113,6 +113,7 @@ function drawBG_Ackerman(f){
 const GRAV=0.42,FLAP=-7.2,WW=68,R=20,SSECS=8;
 const charX=W*0.2;
 let charY=H/2,charVY=0,charFlash=0,parts=[],walls=[],peachItems=[],wTimer=0,curPat=[],patIdx=0,survStart=Date.now();
+let runId=0;  // incremented on every startGame; stale async callbacks check this
 
 function wSpeed(){return peachCount>=30?4.2:peachCount>=7?3.4:2.5;}
 function wInterval(){return peachCount>=30?Math.max(55,90-stage*6):peachCount>=7?Math.max(65,105-stage*6):Math.max(90,130-stage*4);}
@@ -176,7 +177,19 @@ function drawHead(px,py){
   if(charFlash>0&&Math.floor(charFlash/4)%2===0)X.globalAlpha=0.3;
   const bob=Math.sin(F*0.12)*2.5,cy=py+bob;
   if(hasShield){
-    X.save();const p2=0.22+0.1*Math.sin(F*0.18);X.globalAlpha=p2;X.fillStyle='#60d8ff';X.beginPath();X.arc(px,cy,R+12,0,Math.PI*2);X.fill();X.globalAlpha=p2*0.5;X.strokeStyle='#a0eeff';X.lineWidth=2;X.beginPath();X.arc(px,cy,R+16,0,Math.PI*2);X.stroke();X.restore();
+    // Normal shield glow
+    const p2=(shieldWarning?0.12:0.22)+0.08*Math.sin(F*0.18);
+    X.save();X.globalAlpha=p2;X.fillStyle='#60d8ff';X.beginPath();X.arc(px,cy,R+12,0,Math.PI*2);X.fill();
+    // Warning ring: rapid pulse on the character circle only, does NOT obscure walls
+    if(shieldWarning){
+      const wPulse=0.5+0.5*Math.sin(F*0.35); // fast flicker
+      X.globalAlpha=wPulse*0.8;X.strokeStyle='#ffdd44';X.lineWidth=2.5;
+      X.beginPath();X.arc(px,cy,R+4,0,Math.PI*2);X.stroke();
+    } else {
+      X.globalAlpha=p2*0.5;X.strokeStyle='#a0eeff';X.lineWidth=2;
+      X.beginPath();X.arc(px,cy,R+16,0,Math.PI*2);X.stroke();
+    }
+    X.restore();
   }
   X.save();X.beginPath();X.arc(px,cy,R,0,Math.PI*2);X.clip();
   const img=NFTS[selChar];
@@ -188,7 +201,7 @@ function drawHead(px,py){
 }
 
 function drawWall(w){
-  if(clearObsTimer>0)return;
+  // NOTE: walls are ALWAYS drawn even during clearObsTimer (post-shield grace window)
   const T=THEMES[selTheme];
   const wx=w.x,gh=w.gapH,gy=w.gapY,tH=gy,bY=gy+gh,bH=H-bY;
   X.fillStyle=T.wallCol;X.fillRect(wx,0,WW,tH);
@@ -230,11 +243,11 @@ function checkCol(){
   if(hasShield){
     hasShield=false;shieldTimer=0;peachProg=0;charFlash=55;clearObsTimer=90;
     burst(charX,charY,'#60d8ff',14);updShield();playHitSfx();
-    const fo=document.getElementById('fov');fo.style.background='rgba(80,220,255,0.35)';fo.style.opacity='1';setTimeout(()=>fo.style.opacity='0',300);
+    const fo=document.getElementById('fov');fo.style.background='rgba(80,220,255,0.35)';fo.style.opacity='1';const _sfrid=runId;setTimeout(()=>{if(runId===_sfrid)fo.style.opacity='0';},300);
     document.getElementById('stimer').style.opacity='0';
   } else {
     const fo=document.getElementById('fov');fo.style.background='rgba(255,50,50,0.45)';fo.style.opacity='1';playDeathSfx();
-    setTimeout(()=>{fo.style.opacity='0';endGame();},350);
+    const _rid=runId;setTimeout(()=>{fo.style.opacity='0';if(runId===_rid)endGame();},350);
   }
 }
 
@@ -283,7 +296,11 @@ function update(){
   if(hasShield&&shieldTimer>0){
     shieldTimer--;
     document.getElementById('stimer').textContent='⏱ '+Math.ceil(shieldTimer/60)+'s';
-    if(shieldTimer<=0){hasShield=false;peachProg=0;updShield();glbl('shield gone!');playShieldExpireSfx();}
+    // Warning pulse on character only when ≤ 2 seconds left (no full-screen obscuring)
+    shieldWarning = shieldTimer <= 120;
+    if(shieldTimer<=0){hasShield=false;shieldWarning=false;peachProg=0;updShield();glbl('shield gone!');playShieldExpireSfx();}
+  } else {
+    shieldWarning = false;
   }
   if(clearObsTimer>0)clearObsTimer--;
   const ws=wSpeed();
