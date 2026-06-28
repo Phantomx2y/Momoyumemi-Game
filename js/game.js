@@ -113,7 +113,24 @@ function drawBG_Ackerman(f){
 const GRAV=0.42,FLAP=-7.2,WW=68,R=20,SSECS=8;
 const charX=W*0.2;
 let charY=H/2,charVY=0,charFlash=0,parts=[],walls=[],peachItems=[],wTimer=0,curPat=[],patIdx=0,survStart=Date.now();
-let runId=0;  // incremented on every startGame; stale async callbacks check this
+let runId=0;       // incremented every startGame – stale callbacks self-discard
+let _rafId=null;   // current requestAnimationFrame handle
+const _timeouts=new Set(); // all live setTimeout IDs
+
+/** Schedule a clearable timeout that auto-removes itself from the registry. */
+function _st(fn,ms){
+  let id;
+  id=setTimeout(()=>{_timeouts.delete(id);fn();},ms);
+  _timeouts.add(id);
+  return id;
+}
+
+/** Cancel every pending timeout and the current RAF loop. */
+function _clearAll(){
+  _timeouts.forEach(id=>clearTimeout(id));
+  _timeouts.clear();
+  if(_rafId!==null){cancelAnimationFrame(_rafId);_rafId=null;}
+}
 
 function wSpeed(){return peachCount>=30?4.2:peachCount>=7?3.4:2.5;}
 function wInterval(){return peachCount>=30?Math.max(55,90-stage*6):peachCount>=7?Math.max(65,105-stage*6):Math.max(90,130-stage*4);}
@@ -243,11 +260,11 @@ function checkCol(){
   if(hasShield){
     hasShield=false;shieldTimer=0;peachProg=0;charFlash=55;clearObsTimer=90;
     burst(charX,charY,'#60d8ff',14);updShield();playHitSfx();
-    const fo=document.getElementById('fov');fo.style.background='rgba(80,220,255,0.35)';fo.style.opacity='1';const _sfrid=runId;setTimeout(()=>{if(runId===_sfrid)fo.style.opacity='0';},300);
+    const fo=document.getElementById('fov');fo.style.background='rgba(80,220,255,0.35)';fo.style.opacity='1';const _sfrid=runId;_st(()=>{if(runId===_sfrid)fo.style.opacity='0';},300);
     document.getElementById('stimer').style.opacity='0';
   } else {
     const fo=document.getElementById('fov');fo.style.background='rgba(255,50,50,0.45)';fo.style.opacity='1';playDeathSfx();
-    const _rid=runId;setTimeout(()=>{fo.style.opacity='0';if(runId===_rid)endGame();},350);
+    const _rid=runId;_st(()=>{fo.style.opacity='0';if(runId===_rid)endGame();},350);
   }
 }
 
@@ -272,8 +289,8 @@ function checkPeach(){
   });
 }
 
-function showCtxt(t){const el=document.getElementById('ctxt');el.textContent=t;el.style.opacity='1';setTimeout(()=>el.style.opacity='0',700);}
-function glbl(t){const gl=document.getElementById('gaplabel');gl.textContent=t;gl.style.opacity='0.7';setTimeout(()=>gl.style.opacity='0',1800);}
+function showCtxt(t){const el=document.getElementById('ctxt');el.textContent=t;el.style.opacity='1';_st(()=>el.style.opacity='0',700);}
+function glbl(t){const gl=document.getElementById('gaplabel');gl.textContent=t;gl.style.opacity='0.7';_st(()=>gl.style.opacity='0',1800);}
 
 // ── Shield / HUD helpers ──────────────────────────────────────────────────────
 
@@ -328,7 +345,7 @@ function draw(){
   const[mx,my]=fe(charX,charY);drawHead(mx,my);
 }
 
-function loop(){if(!gameOn)return;update();draw();requestAnimationFrame(loop);}
+function loop(){if(!gameOn)return;update();draw();_rafId=requestAnimationFrame(loop);}
 function flap(){if(!gameOn)return;charVY=FLAP;}
 document.addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp'){e.preventDefault();flap();}});
 document.addEventListener('touchstart',e=>{const t=e.target;if(t.tagName==='BUTTON'||t.tagName==='INPUT'||t.classList.contains('ccard')||t.classList.contains('tcard'))return;if(!gameOn)return;e.preventDefault();flap();},{passive:false});
