@@ -83,6 +83,7 @@ function buildTGrid() {
 
 // ── Start game ────────────────────────────────────────────────────────────────
 async function startGame() {
+  console.log("START", runId);
   const nameVal = document.getElementById('ni').value.trim();
   if (!nameVal) return;                // guard: name required
 
@@ -125,8 +126,13 @@ async function startGame() {
 
 // ── End game ──────────────────────────────────────────────────────────────────
 async function endGame() {
-  gameOn = false;
-  stopBGM();
+    console.log("ENDGAME", runId);
+
+    if (!gameOn) return;
+
+    gameOn = false;
+  
+}
 
   const local = await saveLoc(playerName, score);
   await saveLB(playerName, score);
