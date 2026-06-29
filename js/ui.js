@@ -144,8 +144,11 @@ async function endGame() {
   const snapSurvMs = Date.now() - survStart;
   const snapTheme  = THEMES[selTheme];
 
-  // These network calls may take time — a new game could start while waiting.
-  const local = await saveLoc(snapName, snapScore);
+  // saveLoc is synchronous (localStorage) — instant, no await needed.
+  // saveLB is async (Supabase network) — still awaited so we have the result
+  // before deciding whether to show the game-over screen.
+  const local = saveLoc(snapName, snapScore);
+  saveLastPlayer(snapName);       // persist username for next visit
   await saveLB(snapName, snapScore);
 
   // If the player already restarted, do nothing — don't touch the screen.
@@ -212,11 +215,11 @@ document.getElementById('mute-btn').addEventListener('click', () => {
 });
 
 // ── Event wiring ──────────────────────────────────────────────────────────────
-document.getElementById('ni').addEventListener('input', async function () {
+document.getElementById('ni').addEventListener('input', function () {
   _validateName();
   const n = this.value.trim();
-  if (n.length > 1) {
-    const d = await loadLoc(n);
+  if (n.length > 0) {
+    const d = loadLoc(n);         // synchronous localStorage read
     document.getElementById('savlbl').textContent =
       d ? 'welcome back · best: ' + d.best + ' pts' : '';
   } else {
@@ -275,5 +278,22 @@ document.addEventListener('mousedown', e => {
 // ── Initialise ────────────────────────────────────────────────────────────────
 buildCGrid();
 buildTGrid();
-_validateName();          // start with Play disabled
+
+// Prefill username and personal best from localStorage on every page load.
+// This gives instant "welcome back" without any network call.
+(function _prefillPlayer() {
+  const lastName = loadLastPlayer();
+  if (lastName) {
+    const inp = document.getElementById('ni');
+    inp.value = lastName;
+    // Show local best immediately
+    const rec = loadLoc(lastName);
+    if (rec) {
+      document.getElementById('savlbl').textContent =
+        'welcome back · best: ' + rec.best + ' pts';
+    }
+  }
+})();
+
+_validateName();          // enable Play only when a name is present
 showSc('login');
