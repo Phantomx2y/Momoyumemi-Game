@@ -1,46 +1,70 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// leaderboard.js  –  Local (device) score persistence via artifact storage
-// The community leaderboard (Supabase) lives in supabase.js
+// leaderboard.js  –  Device-local score persistence via localStorage
+//
+// Stores { name, best, plays } keyed by normalised username.
+// Completely separate from the Supabase community leaderboard (supabase.js).
+// Uses localStorage so data survives across browser sessions on the same device.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STORAGE_PREFIX = 'mm7_';
+const LS_PREFIX = 'momo_';
 
-/** Generic safe storage getter – returns null if key missing. */
-async function sGet(key, shared = false) {
-  try {
-    return await window.storage.get(key, shared);
-  } catch (e) {
-    return null;
-  }
+/** Normalise a username to a safe localStorage key. */
+function _lsKey(name) {
+  return LS_PREFIX + name.trim().toLowerCase().replace(/\s+/g, '_');
 }
 
 /**
- * Save a player's local best score on this device.
+ * Save (or update) a player's local personal best.
+ * Only updates `best` if the new score is strictly higher.
+ * Always increments `plays`.
  * Returns the updated record { name, best, plays }.
  */
-async function saveLoc(name, score) {
+function saveLoc(name, score) {
   try {
-    const key = STORAGE_PREFIX + name.toLowerCase().replace(/\s/g, '_');
-    const ex  = await sGet(key);
-    const d   = ex ? JSON.parse(ex.value) : { name, best: 0, plays: 0 };
-    if (score > d.best) d.best = score;
-    d.plays = (d.plays || 0) + 1;
-    await window.storage.set(key, JSON.stringify(d));
-    return d;
+    const key     = _lsKey(name);
+    const raw     = localStorage.getItem(key);
+    const record  = raw ? JSON.parse(raw) : { name, best: 0, plays: 0 };
+    if (score > record.best) record.best = score;
+    record.plays  = (record.plays || 0) + 1;
+    // Keep the canonical casing from the most recent play
+    record.name   = name;
+    localStorage.setItem(key, JSON.stringify(record));
+    return record;
+  } catch (e) {
+    console.warn('saveLoc failed:', e);
+    return null;
+  }
+}
+
+/**
+ * Load a player's local record by name (case-insensitive).
+ * Returns { name, best, plays } or null if not found.
+ */
+function loadLoc(name) {
+  try {
+    const raw = localStorage.getItem(_lsKey(name));
+    return raw ? JSON.parse(raw) : null;
   } catch (e) {
     return null;
   }
 }
 
 /**
- * Load a player's local record by name.
- * Returns { name, best, plays } or null if not found.
+ * Persist the last-used username so the login field can be pre-filled
+ * on the next visit.
  */
-async function loadLoc(name) {
+function saveLastPlayer(name) {
   try {
-    const key = STORAGE_PREFIX + name.toLowerCase().replace(/\s/g, '_');
-    const r   = await sGet(key);
-    return r ? JSON.parse(r.value) : null;
+    localStorage.setItem(LS_PREFIX + 'last_player', name.trim());
+  } catch (e) {}
+}
+
+/**
+ * Retrieve the last-used username, or null if none stored.
+ */
+function loadLastPlayer() {
+  try {
+    return localStorage.getItem(LS_PREFIX + 'last_player') || null;
   } catch (e) {
     return null;
   }
